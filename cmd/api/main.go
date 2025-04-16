@@ -1,55 +1,63 @@
 package main
 
 import (
+	"ai-language-notes/internal/api"
+	"ai-language-notes/internal/config"
+	"ai-language-notes/internal/storage"
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
-
-	"ai-language-notes/internal/config"
-
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var dbPool *pgxpool.Pool
-
 func main() {
-	cfg := config.LoadDatabaseConfig()
-	connString := cfg.GetConnectionString()
-
-	var err error
-	dbPool, err = pgxpool.New(context.Background(), connString)
+	// Load configuration
+	cfg, err := config.LoadConfig(".")
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
-	defer dbPool.Close()
 
-	// 测试数据库连接
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Initialize database connection
+	pgStore, err := storage.NewPostgresStorage(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	userRepo := pgStore
+
+	// Set up router with repositories
+	router := api.SetupRouter(cfg, userRepo)
+
+	// Configure HTTP server
+	srv := &http.Server{
+		Addr:    ":" + cfg.HTTPPort,
+		Handler: router,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Server starting on port %s", cfg.HTTPPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	// Create a deadline to wait for current operations to complete
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = dbPool.Ping(ctx)
-	if err != nil {
-		log.Fatalf("Unable to ping database: %v", err)
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
 	}
-	log.Println("Successfully connected to PostgreSQL!")
 
-	r := gin.Default()
-
-	// 健康检查路由
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-
-	// 示例 API 路由 (假设你需要访问数据库)
-	r.GET("/api/example", func(c *gin.Context) {
-		// 在这里可以使用 dbPool 执行数据库操作
-		c.JSON(http.StatusOK, gin.H{
-			"data": "This is an example API response.",
-		})
-	})
-
-	r.Run(":8080")
+	log.Println("Server exited gracefully")
 }
