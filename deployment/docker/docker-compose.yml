@@ -5,36 +5,53 @@ services:
       dockerfile: Dockerfile
     container_name: ai_notes_api
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - .env
     ports:
       - "8080:8080"
-    volumes:
-      - ../../migrations:/app/migrations
     environment:
-      - APP_ENV=development
-      - LOG_LEVEL=development
-      - SERVER_ADDRESS=:8080
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=ai_notes_db
-
+      SERVER_ADDRESS: 0.0.0.0:${APP_PORT} 
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+    networks:
+      - app-network
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     image: postgres:16-alpine
     container_name: ai_notes_db
     restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: ai_notes_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   db_data:
+
+networks:
+  app-network:
+    driver: bridge

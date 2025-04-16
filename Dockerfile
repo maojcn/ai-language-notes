@@ -28,9 +28,6 @@ WORKDIR /app
 # Copy the built binary from builder
 COPY --from=builder /bin/api /bin/api
 
-# Copy migrations and other necessary files if needed
-COPY migrations ./migrations
-
 # Copy environment file
 COPY deployment/docker/.env .env
 
