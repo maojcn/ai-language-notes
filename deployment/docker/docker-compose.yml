@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: ai_notes_api
+    depends_on:
+      - db
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../../migrations:/app/migrations
+    environment:
+      - APP_ENV=development
+      - LOG_LEVEL=development
+      - SERVER_ADDRESS=:8080
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=ai_notes_db
+
+
+  db:
+    image: postgres:16-alpine
+    container_name: ai_notes_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ai_notes_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
