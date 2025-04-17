@@ -18,7 +18,55 @@ type User struct {
 	UpdatedAt      time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updatedAt"`
 }
 
+// Note represents a language learning note
+type Note struct {
+	ID               uuid.UUID        `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID           uuid.UUID        `gorm:"type:uuid;not null" json:"userId"`
+	User             User             `gorm:"foreignKey:UserID" json:"-"`
+	OriginalText     string           `gorm:"type:text;not null" json:"originalText"`
+	GeneratedContent string           `gorm:"type:text" json:"generatedContent,omitempty"`
+	Status           ProcessingStatus `gorm:"type:processing_status;not null;default:'pending'" json:"status"`
+	ErrorMessage     string           `gorm:"type:text" json:"errorMessage,omitempty"`
+	Tags             []Tag            `gorm:"many2many:note_tags;" json:"tags,omitempty"`
+	CreatedAt        time.Time        `gorm:"default:CURRENT_TIMESTAMP" json:"createdAt"`
+	UpdatedAt        time.Time        `gorm:"default:CURRENT_TIMESTAMP" json:"updatedAt"`
+}
+
+// Tag represents a note tag
+type Tag struct {
+	ID    uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	Name  string    `gorm:"varchar(100);uniqueIndex;not null" json:"name"`
+	Notes []Note    `gorm:"many2many:note_tags;" json:"-"`
+}
+
+// ProcessingStatus is the status of a note's AI processing
+type ProcessingStatus string
+
+const (
+	StatusPending    ProcessingStatus = "pending"
+	StatusProcessing ProcessingStatus = "processing"
+	StatusCompleted  ProcessingStatus = "completed"
+	StatusFailed     ProcessingStatus = "failed"
+)
+
 // --- DTOs (Data Transfer Objects) for API requests/responses ---
+
+// AddNoteRequest represents the request to add a new language note
+type AddNoteRequest struct {
+	OriginalText string   `json:"originalText" binding:"required"`
+	Tags         []string `json:"tags,omitempty"`
+}
+
+// NoteResponse represents the response for note operations
+type NoteResponse struct {
+	ID               uuid.UUID        `json:"id"`
+	OriginalText     string           `json:"originalText"`
+	GeneratedContent string           `json:"generatedContent,omitempty"`
+	Status           ProcessingStatus `json:"status"`
+	Tags             []string         `json:"tags,omitempty"`
+	CreatedAt        time.Time        `json:"createdAt"`
+}
+
 type AuthResponse struct {
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
