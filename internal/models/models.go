@@ -94,3 +94,12 @@ type UserProfileUpdateRequest struct {
 	NativeLanguage *string `json:"nativeLanguage,omitempty" binding:"omitempty,len=2"`
 	TargetLanguage *string `json:"targetLanguage,omitempty" binding:"omitempty,len=2"`
 }
+
+// NoteProcessingTask represents a note processing task
+type NoteProcessingTask struct {
+	NoteID         uuid.UUID `json:"note_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	Text           string    `json:"text"`
+	SourceLanguage string    `json:"source_language"`
+	TargetLanguage string    `json:"target_language"`
+}
