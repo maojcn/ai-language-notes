@@ -49,7 +49,7 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("REDIS_PASSWORD", "")
 	viper.SetDefault("REDIS_DB", 0)
 	viper.SetDefault("JWT_SECRET", "supersecretkey")
-	viper.SetDefault("JWT_EXPIRATION_HOURS", 72)
+	viper.SetDefault("JWT_EXPIRATION_HOURS", "72h")
 
 	err = viper.ReadInConfig()
 	// Ignore error if config file is not found, rely on env vars/defaults
@@ -61,9 +61,6 @@ func LoadConfig(path string) (config Config, err error) {
 	if err != nil {
 		return
 	}
-
-	// Convert hours to duration
-	config.JWTExpirationTime = config.JWTExpirationTime * time.Hour
 
 	// Basic validation (add more as needed)
 	if config.JWTSecret == "supersecretkey" || config.JWTSecret == "" {
