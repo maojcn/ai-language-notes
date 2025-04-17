@@ -26,6 +26,13 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	// Init Redis
+	redisClient, err := storage.InitRedis(&cfg)
+	if err != nil {
+		log.Fatalf("FATAL: Could not initialize Redis: %v\n", err)
+	}
+	defer redisClient.Close()
+
 	userRepo := pgStore
 
 	// Set up router with repositories

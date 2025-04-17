@@ -19,6 +19,11 @@ type Config struct {
 	DBSslMode         string        `mapstructure:"DB_SSLMODE"`
 	JWTSecret         string        `mapstructure:"JWT_SECRET"`
 	JWTExpirationTime time.Duration `mapstructure:"JWT_EXPIRATION_HOURS"`
+
+	// Redis Config
+	RedisAddr     string `mapstructure:"REDIS_ADDR"`
+	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
+	RedisDB       int    `mapstructure:"REDIS_DB"`
 }
 
 // LoadConfig reads configuration from file or environment variables.
