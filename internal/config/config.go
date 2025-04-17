@@ -24,6 +24,9 @@ type Config struct {
 	RedisAddr     string `mapstructure:"REDIS_ADDR"`
 	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
 	RedisDB       int    `mapstructure:"REDIS_DB"`
+
+	OpenAIAPIKey   string `mapstructure:"OPENAI_API_KEY"`
+	DeepSeekAPIKey string `mapstructure:"DEEPL_API_KEY"`
 }
 
 // LoadConfig reads configuration from file or environment variables.
