@@ -71,9 +71,6 @@ func LoadConfig(path string) (config Config, err error) {
 		return
 	}
 
-	// Convert hours to duration
-	config.JWTExpirationTime = config.JWTExpirationTime * time.Hour
-
 	// Basic validation (add more as needed)
 	if config.JWTSecret == "supersecretkey" || config.JWTSecret == "" {
 		log.Println("WARNING: JWT_SECRET is set to default or empty. Please configure a strong secret!")
