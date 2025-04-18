@@ -94,3 +94,9 @@ type UserProfileUpdateRequest struct {
 	NativeLanguage *string `json:"nativeLanguage,omitempty" binding:"omitempty,len=2"`
 	TargetLanguage *string `json:"targetLanguage,omitempty" binding:"omitempty,len=2"`
 }
+
+// ProcessedContent represents the structured content from LLM processing
+type ProcessedContent struct {
+	Content string   `json:"content"`
+	Tags    []string `json:"tags"`
+}
