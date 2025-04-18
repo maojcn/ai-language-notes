@@ -5,6 +5,7 @@ import (
 	"ai-language-notes/internal/api/middleware"
 	"ai-language-notes/internal/config"
 	"ai-language-notes/internal/repository"
+	"ai-language-notes/internal/services"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -15,6 +16,8 @@ import (
 func SetupRouter(
 	cfg config.Config,
 	userRepo repository.UserRepository,
+	noteRepo repository.NoteRepository,
+	llmService services.LLMService,
 ) *gin.Engine {
 
 	// gin.SetMode(gin.ReleaseMode) // Uncomment for production
@@ -59,6 +62,17 @@ func SetupRouter(
 	{
 		userRoutes.GET("/profile", userHandler.GetProfile)
 		userRoutes.PUT("/profile", userHandler.UpdateProfile)
+	}
+
+	// --- Note Routes ---
+	noteHandler := handlers.NewNoteHandler(noteRepo, userRepo, llmService)
+	noteRoutes := v1.Group("/notes")
+	noteRoutes.Use(authMiddleware) // Protect note routes
+	{
+		noteRoutes.POST("", noteHandler.CreateNote)
+		noteRoutes.GET("", noteHandler.GetUserNotes)
+		noteRoutes.GET("/:id", noteHandler.GetNote)
+		noteRoutes.DELETE("/:id", noteHandler.DeleteNote)
 	}
 
 	// Handle Not Found routes

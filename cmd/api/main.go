@@ -3,6 +3,8 @@ package main
 import (
 	"ai-language-notes/internal/api"
 	"ai-language-notes/internal/config"
+	"ai-language-notes/internal/repository"
+	"ai-language-notes/internal/services"
 	"ai-language-notes/internal/storage"
 	"context"
 	"log"
@@ -33,10 +35,14 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	userRepo := pgStore
+	// Initialize repositories using the proper implementations
+	userRepo := repository.NewUserRepository(pgStore)
+	noteRepo := repository.NewNoteRepository(pgStore)
 
-	// Set up router with repositories
-	router := api.SetupRouter(cfg, userRepo)
+	llmService := services.NewDeepSeekService(cfg.DeepSeekAPIKey)
+
+	// Set up router with repositories and services
+	router := api.SetupRouter(cfg, userRepo, noteRepo, llmService)
 
 	// Configure HTTP server
 	srv := &http.Server{

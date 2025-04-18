@@ -19,13 +19,9 @@ type UserRepository interface {
 type NoteRepository interface {
 	CreateNote(note *models.Note) (*models.Note, error)
 	GetNoteByID(id uuid.UUID) (*models.Note, error)
-	GetNotesByUserID(userID uuid.UUID) ([]*models.Note, error)
 	UpdateNote(note *models.Note) (*models.Note, error)
 	DeleteNote(id uuid.UUID) error
-	UpdateNoteStatus(id uuid.UUID, status models.ProcessingStatus, content string, errorMsg string) error
-}
-
-type TagRepository interface {
-	GetOrCreateTags(tagNames []string) ([]models.Tag, error)
-	GetTagsByNoteID(noteID uuid.UUID) ([]models.Tag, error)
+	GetNotesByUserID(userID uuid.UUID) ([]*models.Note, error)
+	FindOrCreateTags(tagNames []string) ([]models.Tag, error)
+	AddTagsToNote(noteID uuid.UUID, tags []models.Tag) error
 }

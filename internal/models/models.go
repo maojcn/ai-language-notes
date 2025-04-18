@@ -95,11 +95,8 @@ type UserProfileUpdateRequest struct {
 	TargetLanguage *string `json:"targetLanguage,omitempty" binding:"omitempty,len=2"`
 }
 
-// NoteProcessingTask represents a note processing task
-type NoteProcessingTask struct {
-	NoteID         uuid.UUID `json:"note_id"`
-	UserID         uuid.UUID `json:"user_id"`
-	Text           string    `json:"text"`
-	SourceLanguage string    `json:"source_language"`
-	TargetLanguage string    `json:"target_language"`
+// ProcessedContent represents the structured content from LLM processing
+type ProcessedContent struct {
+	Content string   `json:"content"`
+	Tags    []string `json:"tags"`
 }
