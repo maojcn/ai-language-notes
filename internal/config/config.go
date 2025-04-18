@@ -24,6 +24,13 @@ type Config struct {
 	RedisAddr     string `mapstructure:"REDIS_ADDR"`
 	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
 	RedisDB       int    `mapstructure:"REDIS_DB"`
+
+	// LLM Config
+	LLMProvider    string `mapstructure:"LLM_PROVIDER"`
+	OpenAIAPIKey   string `mapstructure:"OPENAI_API_KEY"`
+	OpenAIModel    string `mapstructure:"OPENAI_MODEL"`
+	DeepseekAPIKey string `mapstructure:"DEEPSEEK_API_KEY"`
+	DeepseekModel  string `mapstructure:"DEEPSEEK_MODEL"`
 }
 
 // LoadConfig reads configuration from file or environment variables.
@@ -48,6 +55,11 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("JWT_SECRET", "supersecretkey")
 	viper.SetDefault("JWT_EXPIRATION_HOURS", 72)
 
+	// LLM defaults
+	viper.SetDefault("LLM_PROVIDER", "openai")
+	viper.SetDefault("OPENAI_MODEL", "gpt-3.5-turbo")
+	viper.SetDefault("DEEPSEEK_MODEL", "deepseek-chat")
+
 	err = viper.ReadInConfig()
 	// Ignore error if config file is not found, rely on env vars/defaults
 	if _, ok := err.(viper.ConfigFileNotFoundError); !ok && err != nil {
@@ -65,6 +77,14 @@ func LoadConfig(path string) (config Config, err error) {
 	// Basic validation (add more as needed)
 	if config.JWTSecret == "supersecretkey" || config.JWTSecret == "" {
 		log.Println("WARNING: JWT_SECRET is set to default or empty. Please configure a strong secret!")
+	}
+
+	if config.LLMProvider == "openai" && config.OpenAIAPIKey == "" {
+		log.Println("WARNING: OPENAI_API_KEY is not set but OpenAI is selected as the LLM provider")
+	}
+
+	if config.LLMProvider == "deepseek" && config.DeepseekAPIKey == "" {
+		log.Println("WARNING: DEEPSEEK_API_KEY is not set but Deepseek is selected as the LLM provider")
 	}
 
 	log.Println("Configuration loaded successfully")
