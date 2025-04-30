@@ -37,10 +37,6 @@ func SetupRouter(
 		c.JSON(http.StatusOK, gin.H{"status": "UP"})
 	})
 
-	r.GET("/test", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Test endpoint is working!"})
-	})
-
 	// --- API v1 Routes ---
 	v1 := r.Group("/api/v1") // Or just use root path "/" if preferred
 
