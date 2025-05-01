@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // NoteRepositoryImpl implements NoteRepository
@@ -16,6 +17,11 @@ type NoteRepositoryImpl struct {
 // NewNoteRepository creates a new NoteRepository
 func NewNoteRepository(db *storage.PostgresStore) NoteRepository {
 	return &NoteRepositoryImpl{db: db}
+}
+
+// GetDB returns the underlying database connection
+func (r *UserRepositoryImpl) GetDB() *gorm.DB {
+	return r.db.GetDB()
 }
 
 // CreateNote creates a new note in the database

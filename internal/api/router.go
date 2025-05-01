@@ -7,6 +7,7 @@ import (
 	"ai-language-notes/internal/config"
 	"ai-language-notes/internal/queue"
 	"ai-language-notes/internal/repository"
+	"ai-language-notes/internal/services"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -54,7 +55,8 @@ func SetupRouter(
 	authMiddleware := middleware.AuthMiddleware(cfg)
 
 	// --- User Routes ---
-	userHandler := handlers.NewUserHandler(userRepo)
+	userService := services.NewUserService(userRepo)
+	userHandler := handlers.NewUserHandler(userService)
 	userRoutes := v1.Group("/user")
 	userRoutes.Use(authMiddleware) // Protect user routes
 	{
@@ -63,7 +65,13 @@ func SetupRouter(
 	}
 
 	// --- Note Routes ---
-	noteHandler := handlers.NewNoteHandler(noteRepo, userRepo, llmService, queueService)
+	noteService := services.NewNoteService(
+		noteRepo,
+		userRepo,
+		llmService,
+		queueService,
+	)
+	noteHandler := handlers.NewNoteHandler(noteService)
 	noteRoutes := v1.Group("/notes")
 	noteRoutes.Use(authMiddleware) // Protect note routes
 	{

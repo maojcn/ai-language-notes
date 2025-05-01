@@ -3,7 +3,7 @@ package handlers
 import (
 	"ai-language-notes/internal/api/dto"
 	"ai-language-notes/internal/api/middleware"
-	"ai-language-notes/internal/repository"
+	"ai-language-notes/internal/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +12,12 @@ import (
 
 // UserHandler handles user profile related requests.
 type UserHandler struct {
-	UserRepo repository.UserRepository
+	UserService services.UserService
 }
 
 // NewUserHandler creates a new UserHandler.
-func NewUserHandler(userRepo repository.UserRepository) *UserHandler {
-	return &UserHandler{UserRepo: userRepo}
+func NewUserHandler(userService services.UserService) *UserHandler {
+	return &UserHandler{UserService: userService}
 }
 
 // GetProfile retrieves the user's profile.
@@ -36,14 +36,14 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	// Fetch user from database
-	user, err := h.UserRepo.GetUserByID(userID)
+	// Fetch user using the service
+	user, err := h.UserService.GetUserByID(userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Return user profile (password hash is automatically excluded by JSON tag in User model)
+	// Return user profile
 	c.JSON(http.StatusOK, user)
 }
 
@@ -71,22 +71,14 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	// Get current user data
-	user, err := h.UserRepo.GetUserByID(userID)
+	user, err := h.UserService.GetUserByID(userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Update fields that were provided in the request
-	if updateReq.NativeLanguage != nil {
-		user.NativeLanguage = *updateReq.NativeLanguage
-	}
-	if updateReq.TargetLanguage != nil {
-		user.TargetLanguage = *updateReq.TargetLanguage
-	}
-
-	// Save updated user
-	updatedUser, err := h.UserRepo.UpdateUser(user)
+	// Update user profile via service
+	updatedUser, err := h.UserService.UpdateUserProfile(user, updateReq.NativeLanguage, updateReq.TargetLanguage)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 		return

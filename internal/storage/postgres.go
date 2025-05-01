@@ -30,13 +30,31 @@ func NewPostgresStorage(cfg config.Config) (*PostgresStore, error) {
 
 	log.Println("Database connection established")
 
-	// Auto Migration (Simple for development, use migration files for production)
+	// Auto Migration with explicit unique constraints
 	log.Println("Running AutoMigration...")
 	err = db.AutoMigrate(&models.User{}, &models.Note{}, &models.Tag{})
 	if err != nil {
 		log.Printf("AutoMigration failed: %v", err)
 		return nil, fmt.Errorf("automigration failed: %w", err)
 	}
+
+	// Check and create unique constraints explicitly
+	if !db.Migrator().HasIndex(&models.User{}, "idx_users_username") {
+		err = db.Exec("CREATE UNIQUE INDEX idx_users_username ON users(username)").Error
+		if err != nil {
+			log.Printf("Failed to create unique index on username: %v", err)
+			return nil, err
+		}
+	}
+
+	if !db.Migrator().HasIndex(&models.User{}, "idx_users_email") {
+		err = db.Exec("CREATE UNIQUE INDEX idx_users_email ON users(email)").Error
+		if err != nil {
+			log.Printf("Failed to create unique index on email: %v", err)
+			return nil, err
+		}
+	}
+
 	log.Println("AutoMigration completed.")
 
 	return &PostgresStore{db: db}, nil

@@ -1,14 +1,11 @@
 package handlers
 
 import (
-	"ai-language-notes/internal/ai"
 	"ai-language-notes/internal/api/dto"
 	"ai-language-notes/internal/api/middleware"
 	"ai-language-notes/internal/models"
-	"ai-language-notes/internal/queue"
-	"ai-language-notes/internal/repository"
+	"ai-language-notes/internal/services"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,24 +13,13 @@ import (
 
 // NoteHandler handles note-related requests
 type NoteHandler struct {
-	noteRepo     repository.NoteRepository
-	userRepo     repository.UserRepository
-	llmService   ai.LLMService
-	queueService *queue.QueueService
+	noteService services.NoteService
 }
 
 // NewNoteHandler creates a new NoteHandler
-func NewNoteHandler(
-	noteRepo repository.NoteRepository,
-	userRepo repository.UserRepository,
-	llmService ai.LLMService,
-	queueService *queue.QueueService,
-) *NoteHandler {
+func NewNoteHandler(noteService services.NoteService) *NoteHandler {
 	return &NoteHandler{
-		noteRepo:     noteRepo,
-		userRepo:     userRepo,
-		llmService:   llmService,
-		queueService: queueService,
+		noteService: noteService,
 	}
 }
 
@@ -60,50 +46,15 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
-	// Get user's language preferences
-	user, err := h.userRepo.GetUserByID(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
-		return
-	}
-
-	// Create a new note with pending status
-	newNote := &models.Note{
-		ID:           uuid.New(),
-		UserID:       userID,
-		OriginalText: req.OriginalText,
-		Status:       models.StatusPending, // Start with pending status
-	}
-
-	// Save the note to the database with pending status
-	savedNote, err := h.noteRepo.CreateNote(newNote)
+	// Use the service to create the note
+	note, err := h.noteService.CreateNote(c.Request.Context(), userID, req.OriginalText)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note"})
 		return
 	}
 
-	// Create a task for async processing
-	task := &queue.LLMProcessingTask{
-		NoteID:         savedNote.ID,
-		OriginalText:   savedNote.OriginalText,
-		UserID:         userID,
-		NativeLanguage: user.NativeLanguage,
-		TargetLanguage: user.TargetLanguage,
-		CreatedAt:      time.Now(),
-	}
-
-	// Enqueue the task for processing
-	err = h.queueService.EnqueueTask(c.Request.Context(), task)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to enqueue task for processing",
-			"note":  convertNoteToResponse(savedNote),
-		})
-		return
-	}
-
 	// Return the note with pending status immediately
-	c.JSON(http.StatusAccepted, convertNoteToResponse(savedNote))
+	c.JSON(http.StatusAccepted, convertNoteToResponse(note))
 }
 
 // GetNote retrieves a specific note
@@ -121,18 +72,20 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr.(string))
-
-	// Fetch note
-	note, err := h.noteRepo.GetNoteByID(noteID)
+	userID, err := uuid.Parse(userIDStr.(string))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
-	// Check that the note belongs to the authenticated user
-	if note.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to access this note"})
+	// Use the service to get the note
+	note, err := h.noteService.GetNoteByID(noteID, userID)
+	if err != nil {
+		if err == services.ErrNotAuthorized {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to access this note"})
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
 		return
 	}
 
@@ -155,8 +108,8 @@ func (h *NoteHandler) GetUserNotes(c *gin.Context) {
 		return
 	}
 
-	// Fetch notes
-	notes, err := h.noteRepo.GetNotesByUserID(userID)
+	// Use the service to fetch notes
+	notes, err := h.noteService.GetNotesByUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve notes"})
 		return
@@ -186,23 +139,23 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr.(string))
-
-	// Fetch note to verify ownership
-	note, err := h.noteRepo.GetNoteByID(noteID)
+	userID, err := uuid.Parse(userIDStr.(string))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
-	// Check that the note belongs to the authenticated user
-	if note.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to delete this note"})
-		return
-	}
-
-	// Delete the note
-	if err := h.noteRepo.DeleteNote(noteID); err != nil {
+	// Use the service to delete the note
+	err = h.noteService.DeleteNote(noteID, userID)
+	if err != nil {
+		if err == services.ErrNotAuthorized {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to delete this note"})
+			return
+		}
+		if err == services.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete note"})
 		return
 	}
