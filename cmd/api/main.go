@@ -63,7 +63,7 @@ func main() {
 		noteRepo,
 		userRepo,
 		llmService,
-		3, // Number of concurrent workers
+		cfg.WorkerCount,
 	)
 
 	// Start the worker service

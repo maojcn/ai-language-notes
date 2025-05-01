@@ -38,6 +38,9 @@ type Config struct {
 
 	// Feature flags
 	EnableCache bool `mapstructure:"ENABLE_CACHE"`
+
+	// Worker settings
+	WorkerCount int `mapstructure:"WORKER_COUNT"`
 }
 
 // LoadConfig reads configuration from file or environment variables.
@@ -63,6 +66,7 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("JWT_EXPIRATION_HOURS", "72h")
 	viper.SetDefault("LLM_PROVIDER", "deepseek")
 	viper.SetDefault("ENABLE_CACHE", true)
+	viper.SetDefault("WORKER_COUNT", 3)
 
 	err = viper.ReadInConfig()
 	// Ignore error if config file is not found, rely on env vars/defaults
