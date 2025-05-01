@@ -1,11 +1,11 @@
 package api
 
 import (
+	"ai-language-notes/internal/ai"
 	"ai-language-notes/internal/api/handlers"
 	"ai-language-notes/internal/api/middleware"
 	"ai-language-notes/internal/config"
 	"ai-language-notes/internal/repository"
-	"ai-language-notes/internal/services"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -17,7 +17,7 @@ func SetupRouter(
 	cfg config.Config,
 	userRepo repository.UserRepository,
 	noteRepo repository.NoteRepository,
-	llmService services.LLMService,
+	llmService ai.LLMService,
 ) *gin.Engine {
 
 	// gin.SetMode(gin.ReleaseMode) // Uncomment for production

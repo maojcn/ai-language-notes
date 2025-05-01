@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"ai-language-notes/internal/ai"
 	"ai-language-notes/internal/api/middleware"
 	"ai-language-notes/internal/models"
 	"ai-language-notes/internal/repository"
-	"ai-language-notes/internal/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -15,14 +15,14 @@ import (
 type NoteHandler struct {
 	noteRepo   repository.NoteRepository
 	userRepo   repository.UserRepository
-	llmService services.LLMService
+	llmService ai.LLMService
 }
 
 // NewNoteHandler creates a new NoteHandler
 func NewNoteHandler(
 	noteRepo repository.NoteRepository,
 	userRepo repository.UserRepository,
-	llmService services.LLMService,
+	llmService ai.LLMService,
 ) *NoteHandler {
 	return &NoteHandler{
 		noteRepo:   noteRepo,
@@ -71,6 +71,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 
 	// Process the text with the LLM service
 	processedContent, err := h.llmService.ProcessText(
+		c.Request.Context(),
 		req.OriginalText,
 		user.NativeLanguage,
 		user.TargetLanguage,
@@ -83,12 +84,30 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 
 		savedNote, createErr := h.noteRepo.CreateNote(newNote)
 		if createErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note", "details": createErr.Error()})
 			return
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to process text with LLM",
+			"note":  savedNote,
+		})
+		return
+	}
+
+	// Check that we have content and at least one tag
+	if processedContent.Content == "" {
+		newNote.Status = models.StatusFailed
+		newNote.ErrorMessage = "LLM returned empty content"
+
+		savedNote, createErr := h.noteRepo.CreateNote(newNote)
+		if createErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note", "details": createErr.Error()})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "LLM returned empty content",
 			"note":  savedNote,
 		})
 		return

@@ -1,10 +1,10 @@
 package main
 
 import (
+	"ai-language-notes/internal/ai"
 	"ai-language-notes/internal/api"
 	"ai-language-notes/internal/config"
 	"ai-language-notes/internal/repository"
-	"ai-language-notes/internal/services"
 	"ai-language-notes/internal/storage"
 	"context"
 	"log"
@@ -39,7 +39,18 @@ func main() {
 	userRepo := repository.NewUserRepository(pgStore)
 	noteRepo := repository.NewNoteRepository(pgStore)
 
-	llmService := services.NewDeepSeekService(cfg.DeepSeekAPIKey)
+	// Initialize the AI service using factory
+	var apiKey string
+	if cfg.LLMProvider == "openai" {
+		apiKey = cfg.OpenAIAPIKey
+	} else {
+		apiKey = cfg.DeepSeekAPIKey
+	}
+
+	llmService, err := ai.CreateLLMServiceFromConfig(cfg.LLMProvider, apiKey)
+	if err != nil {
+		log.Fatalf("Failed to initialize LLM service: %v", err)
+	}
 
 	// Set up router with repositories and services
 	router := api.SetupRouter(cfg, userRepo, noteRepo, llmService)

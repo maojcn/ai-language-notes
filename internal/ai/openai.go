@@ -1,117 +1,106 @@
 package ai
 
 import (
-	"bytes"
+	"ai-language-notes/internal/models"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 )
 
 // OpenAIService implements LLMService using OpenAI's API
 type OpenAIService struct {
-	apiKey     string
-	apiURL     string
-	httpClient *http.Client
+	BaseClient *BaseLLMClient
 }
 
-// OpenAIChatCompletionRequest represents a request to the OpenAI Chat API
+// OpenAIChatCompletionRequest represents a request to OpenAI Chat API
 type OpenAIChatCompletionRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 }
 
-// OpenAIChatCompletionResponse represents a response from the OpenAI Chat API
+// OpenAIChatCompletionResponse represents a response from OpenAI Chat API
 type OpenAIChatCompletionResponse struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
 	Choices []struct {
-		Index   int `json:"index"`
 		Message struct {
-			Role    string `json:"role"`
 			Content string `json:"content"`
 		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 }
 
 // NewOpenAIService creates a new OpenAI service
-func NewOpenAIService(apiKey string) *OpenAIService {
+func NewOpenAIService(config LLMServiceConfig) *OpenAIService {
+	metrics := NewLLMMetrics()
+
+	retryConfig := DefaultRetryConfig()
+	if config.MaxRetries > 0 {
+		retryConfig.MaxRetries = config.MaxRetries
+	}
+
+	timeout := 30 * time.Second
+	if config.Timeout > 0 {
+		timeout = time.Duration(config.Timeout) * time.Second
+	}
+
+	modelName := "gpt-4"
+	if config.ModelName != "" {
+		modelName = config.ModelName
+	}
+
+	baseClient := &BaseLLMClient{
+		APIKey:      config.APIKey,
+		APIEndpoint: "https://api.openai.com/v1/chat/completions",
+		ModelName:   modelName,
+		Provider:    "openai",
+		HTTPClient:  NewHTTPClient(timeout),
+		Metrics:     metrics,
+		RetryConfig: retryConfig,
+	}
+
 	return &OpenAIService{
-		apiKey: apiKey,
-		apiURL: "https://api.openai.com/v1/chat/completions",
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		BaseClient: baseClient,
 	}
 }
 
-// ProcessLanguageNote processes a language note using the OpenAI API
-func (s *OpenAIService) ProcessLanguageNote(ctx context.Context, text, sourceLanguage, targetLanguage string) (string, error) {
-	// Create the system prompt with language information
-	systemPrompt := fmt.Sprintf(
-		"You are a language learning assistant helping someone learn %s. Their native language is %s. "+
-			"Analyze the provided text in %s and provide the following in your response:\n"+
-			"1. Grammar corrections with explanations\n"+
-			"2. Vocabulary suggestions and alternatives\n"+
-			"3. Cultural context and nuance explanations\n"+
-			"4. Example sentences using key phrases from the text\n"+
-			"Format your response in clear sections with Markdown headings.",
-		targetLanguage, sourceLanguage, targetLanguage,
-	)
+// ProcessText implements LLMService.ProcessText
+func (s *OpenAIService) ProcessText(ctx context.Context, text, sourceLanguage, targetLanguage string) (*models.ProcessedContent, error) {
+	prompt := fmt.Sprintf(
+		`You are a language learning assistant. A user who speaks %s is learning %s.
+They provided this text: "%s"
 
-	// Create the request payload
-	requestBody := OpenAIChatCompletionRequest{
-		Model: "gpt-4",
+Please analyze this text and provide:
+1. A breakdown of interesting vocabulary and grammar points
+2. A brief explanation of cultural context if relevant
+3. Alternative ways to express the same idea
+4. Common mistakes learners might make with this phrase
+
+Format your response as a JSON object with two fields:
+- "content": detailed educational content about the text
+- "tags": an array of 3-5 relevant tags (single words only) for categorizing this note
+
+JSON response only, no additional text.`,
+		sourceLanguage, targetLanguage, text)
+
+	// Create request
+	request := OpenAIChatCompletionRequest{
+		Model: s.BaseClient.ModelName,
 		Messages: []Message{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: text},
+			{Role: "system", Content: "You are a helpful language learning assistant that responds in JSON format."},
+			{Role: "user", Content: prompt},
 		},
 	}
 
-	jsonData, err := json.Marshal(requestBody)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+	// Send request
+	var response OpenAIChatCompletionResponse
+	if err := s.BaseClient.SendRequest(ctx, request, &response); err != nil {
+		return nil, err
 	}
 
-	// Create the HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", s.apiURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+	// Process response
+	if len(response.Choices) == 0 {
+		return nil, ErrInvalidResponse
 	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	content := response.Choices[0].Message.Content
 
-	// Send the request
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check the response status
-	if resp.StatusCode != http.StatusOK {
-		var errorResponse map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
-			return "", fmt.Errorf("API request failed with status %d", resp.StatusCode)
-		}
-		return "", fmt.Errorf("API request failed: %v", errorResponse)
-	}
-
-	// Parse the response
-	var completionResponse OpenAIChatCompletionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&completionResponse); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Extract the generated content
-	if len(completionResponse.Choices) == 0 {
-		return "", fmt.Errorf("no completion choices returned")
-	}
-
-	return completionResponse.Choices[0].Message.Content, nil
+	return ParseJSONContent(content)
 }
