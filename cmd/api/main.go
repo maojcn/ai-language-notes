@@ -4,8 +4,10 @@ import (
 	"ai-language-notes/internal/ai"
 	"ai-language-notes/internal/api"
 	"ai-language-notes/internal/config"
+	"ai-language-notes/internal/queue"
 	"ai-language-notes/internal/repository"
 	"ai-language-notes/internal/storage"
+	"ai-language-notes/internal/worker"
 	"context"
 	"log"
 	"net/http"
@@ -52,8 +54,23 @@ func main() {
 		log.Fatalf("Failed to initialize LLM service: %v", err)
 	}
 
-	// Set up router with repositories and services
-	router := api.SetupRouter(cfg, userRepo, noteRepo, llmService)
+	// Initialize queue service
+	queueService := queue.NewQueueService(redisClient)
+
+	// Initialize worker service (with 3 worker goroutines)
+	workerService := worker.NewWorker(
+		queueService,
+		noteRepo,
+		userRepo,
+		llmService,
+		3, // Number of concurrent workers
+	)
+
+	// Start the worker service
+	workerService.Start()
+
+	// Setup router with repositories and services
+	router := api.SetupRouter(cfg, userRepo, noteRepo, llmService, queueService)
 
 	// Configure HTTP server
 	srv := &http.Server{
@@ -69,11 +86,14 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Wait for interrupt signal to gracefully shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
+
+	// Shutdown worker first
+	workerService.Stop()
 
 	// Create a deadline to wait for current operations to complete
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

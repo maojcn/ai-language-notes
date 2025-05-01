@@ -1,14 +1,14 @@
 package ai
 
 import (
-	"ai-language-notes/internal/models"
+	"ai-language-notes/internal/api/dto"
 	"context"
 )
 
 // LLMService defines the unified interface for LLM providers
 type LLMService interface {
 	// ProcessText processes text input and returns structured content
-	ProcessText(ctx context.Context, text, sourceLanguage, targetLanguage string) (*models.ProcessedContent, error)
+	ProcessText(ctx context.Context, text, sourceLanguage, targetLanguage string) (*dto.ProcessedContent, error)
 }
 
 // ProviderType represents the type of LLM provider

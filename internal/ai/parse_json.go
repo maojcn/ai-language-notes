@@ -1,14 +1,14 @@
 package ai
 
 import (
-	"ai-language-notes/internal/models"
+	"ai-language-notes/internal/api/dto"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
 // parseJSONContent extracts structured content from LLM JSON response
-func ParseJSONContent(content string) (*models.ProcessedContent, error) {
+func ParseJSONContent(content string) (*dto.ProcessedContent, error) {
 	// Strip markdown code blocks if present
 	if strings.HasPrefix(content, "```") {
 		// Find the position of the first opening brace
@@ -23,7 +23,7 @@ func ParseJSONContent(content string) (*models.ProcessedContent, error) {
 	}
 
 	// Try parsing as a direct JSON object first
-	var processedContent models.ProcessedContent
+	var processedContent dto.ProcessedContent
 	if err := json.Unmarshal([]byte(content), &processedContent); err == nil {
 		// Successful direct parsing
 		if processedContent.Content != "" && len(processedContent.Tags) > 0 {
@@ -68,7 +68,7 @@ func ParseJSONContent(content string) (*models.ProcessedContent, error) {
 		}
 	}
 
-	return &models.ProcessedContent{
+	return &dto.ProcessedContent{
 		Content: finalContent,
 		Tags:    tags,
 	}, nil

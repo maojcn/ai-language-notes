@@ -1,7 +1,7 @@
 package ai
 
 import (
-	"ai-language-notes/internal/models"
+	"ai-language-notes/internal/api/dto"
 	"context"
 	"fmt"
 	"time"
@@ -62,7 +62,7 @@ func NewDeepseekService(config LLMServiceConfig) *DeepseekService {
 }
 
 // ProcessText implements LLMService.ProcessText
-func (s *DeepseekService) ProcessText(ctx context.Context, text, sourceLanguage, targetLanguage string) (*models.ProcessedContent, error) {
+func (s *DeepseekService) ProcessText(ctx context.Context, text, sourceLanguage, targetLanguage string) (*dto.ProcessedContent, error) {
 	prompt := fmt.Sprintf(
 		`You are a language learning assistant. A user who speaks %s is learning %s.
 They provided this text: "%s"

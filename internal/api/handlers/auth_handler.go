@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-language-notes/internal/api/dto"
 	"ai-language-notes/internal/auth"
 	"ai-language-notes/internal/config"
 	"ai-language-notes/internal/models"
@@ -29,7 +30,7 @@ func NewAuthHandler(userRepo repository.UserRepository, cfg config.Config) *Auth
 
 // Register handles user registration.
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req models.RegisterRequest
+	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -76,7 +77,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.AuthResponse{
+	c.JSON(http.StatusCreated, dto.AuthResponse{
 		Token:     token,
 		ExpiresAt: time.Now().Add(h.Config.JWTExpirationTime),
 		UserID:    createdUser.ID,
@@ -85,7 +86,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 // Login handles user login.
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req models.LoginRequest
+	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -120,7 +121,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.AuthResponse{
+	c.JSON(http.StatusOK, dto.AuthResponse{
 		Token:     token,
 		ExpiresAt: time.Now().Add(h.Config.JWTExpirationTime),
 		UserID:    user.ID,

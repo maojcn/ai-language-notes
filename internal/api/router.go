@@ -5,6 +5,7 @@ import (
 	"ai-language-notes/internal/api/handlers"
 	"ai-language-notes/internal/api/middleware"
 	"ai-language-notes/internal/config"
+	"ai-language-notes/internal/queue"
 	"ai-language-notes/internal/repository"
 	"net/http"
 
@@ -18,6 +19,7 @@ func SetupRouter(
 	userRepo repository.UserRepository,
 	noteRepo repository.NoteRepository,
 	llmService ai.LLMService,
+	queueService *queue.QueueService,
 ) *gin.Engine {
 
 	// gin.SetMode(gin.ReleaseMode) // Uncomment for production
@@ -61,7 +63,7 @@ func SetupRouter(
 	}
 
 	// --- Note Routes ---
-	noteHandler := handlers.NewNoteHandler(noteRepo, userRepo, llmService)
+	noteHandler := handlers.NewNoteHandler(noteRepo, userRepo, llmService, queueService)
 	noteRoutes := v1.Group("/notes")
 	noteRoutes.Use(authMiddleware) // Protect note routes
 	{

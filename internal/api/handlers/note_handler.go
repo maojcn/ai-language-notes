@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"ai-language-notes/internal/ai"
+	"ai-language-notes/internal/api/dto"
 	"ai-language-notes/internal/api/middleware"
 	"ai-language-notes/internal/models"
+	"ai-language-notes/internal/queue"
 	"ai-language-notes/internal/repository"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,9 +16,10 @@ import (
 
 // NoteHandler handles note-related requests
 type NoteHandler struct {
-	noteRepo   repository.NoteRepository
-	userRepo   repository.UserRepository
-	llmService ai.LLMService
+	noteRepo     repository.NoteRepository
+	userRepo     repository.UserRepository
+	llmService   ai.LLMService
+	queueService *queue.QueueService
 }
 
 // NewNoteHandler creates a new NoteHandler
@@ -23,11 +27,13 @@ func NewNoteHandler(
 	noteRepo repository.NoteRepository,
 	userRepo repository.UserRepository,
 	llmService ai.LLMService,
+	queueService *queue.QueueService,
 ) *NoteHandler {
 	return &NoteHandler{
-		noteRepo:   noteRepo,
-		userRepo:   userRepo,
-		llmService: llmService,
+		noteRepo:     noteRepo,
+		userRepo:     userRepo,
+		llmService:   llmService,
+		queueService: queueService,
 	}
 }
 
@@ -48,7 +54,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 	}
 
 	// Parse request
-	var req models.AddNoteRequest
+	var req dto.AddNoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -66,76 +72,38 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 		ID:           uuid.New(),
 		UserID:       userID,
 		OriginalText: req.OriginalText,
-		Status:       models.StatusProcessing,
+		Status:       models.StatusPending, // Start with pending status
 	}
 
-	// Process the text with the LLM service
-	processedContent, err := h.llmService.ProcessText(
-		c.Request.Context(),
-		req.OriginalText,
-		user.NativeLanguage,
-		user.TargetLanguage,
-	)
-
-	if err != nil {
-		// Save note with error status
-		newNote.Status = models.StatusFailed
-		newNote.ErrorMessage = "Failed to process text: " + err.Error()
-
-		savedNote, createErr := h.noteRepo.CreateNote(newNote)
-		if createErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note", "details": createErr.Error()})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to process text with LLM",
-			"note":  savedNote,
-		})
-		return
-	}
-
-	// Check that we have content and at least one tag
-	if processedContent.Content == "" {
-		newNote.Status = models.StatusFailed
-		newNote.ErrorMessage = "LLM returned empty content"
-
-		savedNote, createErr := h.noteRepo.CreateNote(newNote)
-		if createErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note", "details": createErr.Error()})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "LLM returned empty content",
-			"note":  savedNote,
-		})
-		return
-	}
-
-	// Update note with processed content
-	newNote.GeneratedContent = processedContent.Content
-	newNote.Status = models.StatusCompleted
-
-	// Add tags from processed content
-	for _, tagName := range processedContent.Tags {
-		newNote.Tags = append(newNote.Tags, models.Tag{
-			ID:   uuid.New(),
-			Name: tagName,
-		})
-	}
-
-	// Save the note to the database
+	// Save the note to the database with pending status
 	savedNote, err := h.noteRepo.CreateNote(newNote)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save note"})
 		return
 	}
 
-	// Convert to response DTO
-	response := convertNoteToResponse(savedNote)
+	// Create a task for async processing
+	task := &queue.LLMProcessingTask{
+		NoteID:         savedNote.ID,
+		OriginalText:   savedNote.OriginalText,
+		UserID:         userID,
+		NativeLanguage: user.NativeLanguage,
+		TargetLanguage: user.TargetLanguage,
+		CreatedAt:      time.Now(),
+	}
 
-	c.JSON(http.StatusCreated, response)
+	// Enqueue the task for processing
+	err = h.queueService.EnqueueTask(c.Request.Context(), task)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to enqueue task for processing",
+			"note":  convertNoteToResponse(savedNote),
+		})
+		return
+	}
+
+	// Return the note with pending status immediately
+	c.JSON(http.StatusAccepted, convertNoteToResponse(savedNote))
 }
 
 // GetNote retrieves a specific note
@@ -195,7 +163,7 @@ func (h *NoteHandler) GetUserNotes(c *gin.Context) {
 	}
 
 	// Convert to response DTOs
-	var responseNotes []models.NoteResponse
+	var responseNotes []dto.NoteResponse
 	for _, note := range notes {
 		responseNotes = append(responseNotes, convertNoteToResponse(note))
 	}
@@ -243,13 +211,13 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 }
 
 // Helper function to convert Note model to NoteResponse DTO
-func convertNoteToResponse(note *models.Note) models.NoteResponse {
+func convertNoteToResponse(note *models.Note) dto.NoteResponse {
 	tagNames := make([]string, len(note.Tags))
 	for i, tag := range note.Tags {
 		tagNames[i] = tag.Name
 	}
 
-	return models.NoteResponse{
+	return dto.NoteResponse{
 		ID:               note.ID,
 		OriginalText:     note.OriginalText,
 		GeneratedContent: note.GeneratedContent,

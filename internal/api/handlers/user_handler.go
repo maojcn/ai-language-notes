@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"ai-language-notes/internal/api/dto"
 	"ai-language-notes/internal/api/middleware"
-	"ai-language-notes/internal/models"
 	"ai-language-notes/internal/repository"
 	"net/http"
 
@@ -64,7 +64,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	// Parse update request
-	var updateReq models.UserProfileUpdateRequest
+	var updateReq dto.UserProfileUpdateRequest
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
