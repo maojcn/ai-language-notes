@@ -2,19 +2,27 @@
 -- Make sure sequence ownership and permissions are correct if needed.
 CREATE TYPE processing_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 
+-- Enable pgcrypto extension for UUID generation
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- users table
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    -- ... other columns ...
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
     native_language VARCHAR(10) NOT NULL DEFAULT 'en',
+    target_language VARCHAR(10) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX idx_users_username ON users(username);
+CREATE UNIQUE INDEX idx_users_email ON users(email);
 
 -- notes table
 CREATE TABLE notes (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     original_text TEXT NOT NULL,
     generated_content TEXT,
     status processing_status NOT NULL DEFAULT 'pending',
@@ -27,14 +35,15 @@ CREATE INDEX idx_notes_status ON notes(status);
 
 -- tags table
 CREATE TABLE tags (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL
 );
+CREATE UNIQUE INDEX idx_tags_name ON tags(name);
 
 -- note_tags table
 CREATE TABLE note_tags (
-    note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (note_id, tag_id)
 );
 
@@ -51,5 +60,5 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECU
 CREATE TRIGGER update_notes_updated_at BEFORE UPDATE ON notes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Seed a test user (optional, remove for production migrations)
-INSERT INTO users (username, email, password_hash, native_language) VALUES
-('testuser', 'test@example.com', '$2a$10$...', 'en'); -- Replace with a real hash if needed for testing login later
+INSERT INTO users (username, email, password_hash, native_language, target_language) VALUES
+('testuser', 'test@example.com', '$2a$10$...', 'en', 'de'); -- Replace with a real hash if needed for testing login later
